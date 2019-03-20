@@ -19,6 +19,8 @@ object Dependencies {
 
   lazy val catsEffect = "org.typelevel" %% "cats-effect" % "1.2.0"
 
+  lazy val catsMtl = "org.typelevel" %% "cats-mtl-core" % "0.4.0"
+
   // HTTP4S --------------------------------------------------------------------
   lazy val http4sServer = "org.http4s" %% "http4s-blaze-server" % Versions.http4s
 
