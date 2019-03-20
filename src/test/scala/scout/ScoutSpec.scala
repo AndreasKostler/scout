@@ -1,4 +1,4 @@
-package scout
+package com.scout
 
 import org.scalatest._
 
