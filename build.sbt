@@ -10,7 +10,7 @@ sbtPlugin := true
 lazy val root = (project in file("."))
   .settings(
     name := "scout",
-    libraryDependencies ++= Seq(refined, scalaTest % Test)
+    libraryDependencies ++= Seq(refined, catsCore, catsEffect, scalaTest % Test) ++ circeAll ++ http4sAll
   )
 
 // See https://www.scala-sbt.org/1.x/docs/Using-Sonatype.html for instructions on how to publish to Sonatype.
