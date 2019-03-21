@@ -10,6 +10,8 @@ import io.circe.generic.auto._
 import io.circe.refined._
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
+import org.http4s.server.middleware._
+import scala.concurrent.duration._
 
 import com.scout.dto.CarRequest
 import com.scout.domain.Car
@@ -20,35 +22,51 @@ class Router[F[_]: Effect](repo: CarRepo[F]) extends Http4sDsl[F] {
   import org.http4s.implicits._
   import cats.implicits._
 
+  // AK - Nothing but assumptions here; this is just for demonstration
+  val corsConfig = CORSConfig(
+    anyOrigin = true,
+    anyMethod = false,
+    allowedMethods = Some(Set("GET", "POST")),
+    allowCredentials = true,
+    maxAge = 1.day.toSeconds
+  )
+
   def api =
-    Http4sRouter[F](
-      "/api/1.0" -> cars
+    CORS(
+      Http4sRouter[F](
+        "/api/1.0" -> cars
+      ),
+      corsConfig
     ).orNotFound
 
   // ---------------------------------------------------------------------------
-
-  // TODO: Don't return Car directly, map to DTO!!!
   private val cars = HttpRoutes.of[F] {
-
     case GET -> Root / "cars" :? CarIdQueryParamMatcher(id) =>
-      repo
-        .get(id)
-        .value
-        .flatMap(_.fold(err => NotFound(err), car => Ok(car.toDto)))
+      validateId(
+        id,
+        id =>
+          repo
+            .get(id)
+            .value
+            .flatMap(_.fold(err => NotFound(err), car => Ok(car.toDto)))
+      )
 
     case GET -> Root / "cars" :? SortOrderQueryParamMatcher(sortOrder) =>
-      repo.getAll(sortOrder.getOrElse(SortOrder.ByCarId)) >>= (
-          cars => Ok(cars.map(_.toDto))
+      validateParam[SortOrder](
+        sortOrder.getOrElse(Some(SortOrder.ByCarId)),
+        ord => repo.getAll(ord) >>= (cars => Ok(cars.map(_.toDto))),
+        "Bad sort order"
       )
 
     case req @ POST -> Root / "cars" =>
       newId >>= (id => validateRequest(req, id, insertCar(repo)))
 
     case req @ PUT -> Root / "cars" :? CarIdQueryParamMatcher(id) =>
-      validateRequest(req, id, updateCar(repo))
+      validateId(id, id => validateRequest(req, id, updateCar(repo)))
 
     case DELETE -> Root / "cars" :? CarIdQueryParamMatcher(id) =>
-      deleteCar(repo, id)
+      validateId(id, deleteCar(repo))
+
   }
 
   // ---------------------------------------------------------------------------
@@ -62,17 +80,13 @@ class Router[F[_]: Effect](repo: CarRepo[F]) extends Http4sDsl[F] {
     op.semiflatMap(_ => Ok())
       .valueOrF(transformError)
 
-  // private def toResponse[A: Encoder](op: EitherT[F, CarRepo.Error, A]) =
-  //   op.semiflatMap(x => Ok(x))
-  //     .valueOrF(transformError)
-
   private def insertCar(repo: CarRepo[F])(car: Car): F[Response[F]] =
     toEmptyResponse(repo.insert(car.id, car))
 
   private def updateCar(repo: CarRepo[F])(car: Car): F[Response[F]] =
     toEmptyResponse(repo.update(car.id, car))
 
-  private def deleteCar(repo: CarRepo[F], id: Car.Id): F[Response[F]] =
+  private def deleteCar(repo: CarRepo[F])(id: Car.Id): F[Response[F]] =
     toEmptyResponse(repo.delete(id))
 
   private def validateRequest(
@@ -91,22 +105,34 @@ class Router[F[_]: Effect](repo: CarRepo[F]) extends Http4sDsl[F] {
     )
   }
 
+  private def validateParam[A](
+      id: Option[A],
+      success: A => F[Response[F]],
+      bad: String
+  ) =
+    id.fold(BadRequest(bad))(success)
+
+  private def validateId(
+      id: Option[Car.Id],
+      success: Car.Id => F[Response[F]]
+  ) =
+    validateParam(id, success, "Bad Id")
+
   private def newId = Effect[F].delay(Car.Id(UUID.randomUUID))
 
   // ---------------------------------------------------------------------------
 
-  implicit def carIdQueryParamDecoder: QueryParamDecoder[Car.Id] =
-    QueryParamDecoder[String].map(Car.Id.unsafeFrom)
+  implicit def carIdQueryParamDecoder: QueryParamDecoder[Option[Car.Id]] =
+    QueryParamDecoder[String].map(Car.Id.from)
 
   object CarIdQueryParamMatcher
-      extends QueryParamDecoderMatcher[Car.Id]("carId")
+      extends QueryParamDecoderMatcher[Option[Car.Id]]("carId")
 
-  implicit def sortOrderQueryParamDecoder: QueryParamDecoder[SortOrder] =
-    QueryParamDecoder[String].map(
-      s => SortOrder.fromString(s).getOrElse(SortOrder.ByCarId)
-    )
+  implicit def sortOrderQueryParamDecoder
+      : QueryParamDecoder[Option[SortOrder]] =
+    QueryParamDecoder[String].map(SortOrder.fromString)
 
   object SortOrderQueryParamMatcher
-      extends OptionalQueryParamDecoderMatcher[SortOrder]("sortOrder")
+      extends OptionalQueryParamDecoderMatcher[Option[SortOrder]]("sortOrder")
 
 }

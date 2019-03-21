@@ -4,13 +4,9 @@ import cats.effect.IO
 import org.scalatest._
 import org.scalatest.prop._
 
-import eu.timepit.refined.scalacheck.numeric._
-import eu.timepit.refined.scalacheck.string._
 import org.scalacheck.ScalacheckShapeless._
 
 import scala.util.Random
-import org.scalacheck._
-import org.scalacheck.Arbitrary._
 
 import org.http4s.{Status => HttpStatus, _}
 import org.http4s.circe.CirceEntityDecoder._
@@ -22,7 +18,6 @@ import com.scout.repo.CarRepo
 import com.scout.dto._
 
 import java.util.UUID
-import java.time.LocalDateTime
 
 class ScoutSpec
     extends FeatureSpec
@@ -55,7 +50,7 @@ class ScoutSpec
 
       When("a sort field is specified")
       Then("the list should be sorted by this field")
-      forAll(Gen.oneOf("carid", "title", "fuel")) { (so: String) =>
+      forAll(sortOrderGen) { (so: String) =>
         val exp = getAll(repo, SortOrder.fromString(so))
         check[List[CarResponse]](
           fire(router, get("sortOrder" -> so)),
@@ -211,7 +206,7 @@ class ScoutSpec
       Given("the request doesn't validate")
       Then("the service should return BAD-REQUEST")
       val ivNewTitle = NonEmptyString.unsafeFrom("MyInvalidNewCarCustomTitle")
-      val ivNewCarReq = invalidNewCarReq(ivNewTitle)
+      val ivNewCarReq = invalidateNewCarReq(newCarReq)
       check[Unit](
         fire(
           router,
@@ -256,7 +251,7 @@ class ScoutSpec
       Given("the request doesn't validate")
       Then("the service should return BAD-REQUEST")
       val ivUsedTitle = NonEmptyString.unsafeFrom("MyInvalidUsedCarCustomTitle")
-      val ivUsedCarReq = invalidUsedCarReq(ivNewTitle)
+      val ivUsedCarReq = invalidateUsedCarReq(usedCarReq)
       check[Unit](
         fire(
           router,
@@ -296,39 +291,5 @@ class ScoutSpec
 
   private def getAll(repo: CarRepo[IO], order: Option[SortOrder]) =
     repo.getAll(order.getOrElse(SortOrder.ByCarId)).unsafeRunSync
-
-  private def toDto(car: Car) = {
-    val (isNew, mileage, registration) = car.condition match {
-      case Condition.New        => (true, None, None)
-      case Condition.Used(m, r) => (false, Some(m), Some(r))
-    }
-    CarRequest(car.title, car.fuel, car.price, isNew, mileage, registration)
-  }
-
-  private def validNewCarReq(title: Car.Title) =
-    toDto(
-      arbitrary[Car].sample.get
-        .copy(condition = Condition.New, title = title)
-    )
-  private def validUsedCarReq(title: Car.Title) =
-    toDto(
-      arbitrary[Car].sample.get
-        .copy(condition = arbitrary[Condition.Used].sample.get, title = title)
-    )
-
-  private def invalidNewCarReq(title: Car.Title) =
-    toDto(
-      arbitrary[Car].sample.get
-        .copy(condition = Condition.New, title = title)
-    ).copy(
-      mileage = Some(PosInt.unsafeFrom(1)),
-      firstRegistration = Some(LocalDateTime.now)
-    )
-
-  private def invalidUsedCarReq(title: Car.Title) =
-    toDto(
-      arbitrary[Car].sample.get
-        .copy(condition = arbitrary[Condition.Used].sample.get, title = title)
-    ).copy(mileage = None, firstRegistration = None)
 
 }

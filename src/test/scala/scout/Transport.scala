@@ -41,7 +41,6 @@ trait Transport {
 
   def fire(router: Router[IO], req: Request[IO]) = router.api.run(req)
 
-  // ---------------------------------------------------------------------------
-  private val root = Uri.uri("/api/1.0/cars")
+  val root = Uri.uri("/api/1.0/cars")
 
 }

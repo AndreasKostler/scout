@@ -25,6 +25,7 @@ object Car {
   type Id = UuidString
   object Id {
     def unsafeFrom(id: String): Id = UuidString.unsafeFrom(id)
+    def from(id: String): Option[Id] = UuidString.from(id).toOption
     def apply(uuid: UUID): Id = UuidString.unsafeFrom(uuid.toString)
   }
   type Title = NonEmptyString
