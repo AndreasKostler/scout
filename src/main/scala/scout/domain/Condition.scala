@@ -17,4 +17,22 @@ object Condition {
   object Used {
     type Mileage = PosInt
   }
+
+  // AK - Validation happens here;
+  def from(
+      isNew: Boolean,
+      mileage: Option[Used.Mileage],
+      firstRegistration: Option[LocalDateTime]
+  ): Option[Condition] = {
+    import cats.implicits._
+    if (isNew)
+      List(mileage, firstRegistration).sequence
+        .fold(Option(Condition.New))(_ => None)
+    else
+      for {
+        m <- mileage
+        r <- firstRegistration
+      } yield Condition.Used(m, r)
+
+  }
 }

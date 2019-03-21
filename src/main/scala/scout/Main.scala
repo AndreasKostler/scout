@@ -1,16 +1,13 @@
 package com.scout
 
 import cats.effect._
-
 import org.http4s.server.blaze._
+import com.scout.repo.CarRepo
 
 object Main extends IOApp {
   import cats.implicits._
 
-  // Add services here ---------------------------------------------------------
-
-  // ---------------------------------------------------------------------------
-  val router = new Router[IO]
+  val router = new Router[IO](CarRepo.dummyInterpreter[IO](Map.empty))
 
   def run(args: List[String]): IO[ExitCode] =
     BlazeServerBuilder[IO]
