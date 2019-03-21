@@ -14,8 +14,11 @@ lazy val root = (project in file("."))
       refined,
       catsCore,
       catsEffect,
-      catsMtl,
-      scalaTest % Test
+      scalaTest % Test,
+      scalaCheck % Test,
+      scalaCheckShapeless % Test,
+      refinedScalaCheck % Test,
+      refinedShapeless % Test
     ) ++ circeAll ++ http4sAll
   )
 
